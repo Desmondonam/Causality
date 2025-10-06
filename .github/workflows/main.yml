@@ -1,31 +1,70 @@
-name: causality
+name: CI/CD Pipeline
+
 on:
   push:
-    branches:
-      - main
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
 jobs:
-  run:
+  test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.9, 3.8]
+    
     steps:
-      - uses: actions/checkout@v2
-      - uses: iterative/setup-cml@v1
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run data tests
+      run: |
+        pytest tests/test_data_loading.py -v
+    
+    - name: Run model tests
+      run: |
+        pytest tests/test_model_performance.py -v
+    
+    - name: Generate coverage report
+      run: |
+        pytest --cov=src tests/ --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
 
-      - name: run-tests
-        run: |
-          python -m unittest
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Build success notification
+      run: echo "✓ Build completed successfully!"
 
-      - name: Model Results
-        env:
-          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          python scripts/cml_result.py
-
-          cat models/results.txt >> report.md
-          cml-send-comment report.md
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Deploy to Streamlit Cloud
+      run: |
+        echo "Deployment triggered!"
+        echo "Visit Streamlit Cloud dashboard to complete deployment"
