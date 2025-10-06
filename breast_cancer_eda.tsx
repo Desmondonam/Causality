@@ -14,9 +14,7 @@ print("="*80)
 # Basic information
 print("\n1. DATASET OVERVIEW")
 print("-" * 80)
-print(f"Dataset Shape: {df.shape}")
-print(f"Number of Samples: {df.shape[0]}")
-print(f"Number of Features: {df.shape[1]}")
+
 
 print("\nFirst few rows:")
 print(df.head())
