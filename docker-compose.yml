@@ -1,0 +1,27 @@
+# Local full-stack dev: backend API + frontend, both hot-reloading.
+# Run `python -m ml.pipeline` at least once before `docker compose up` so
+# `models/` and `outputs/reports/` exist for the backend to serve.
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      CAUSALITY_CORS_ORIGINS: "http://localhost:3000"
+    volumes:
+      - ./models:/srv/models:ro
+      - ./outputs/reports:/srv/outputs/reports:ro
+
+  frontend:
+    build:
+      context: ./frontend
+      # NEXT_PUBLIC_* vars are inlined at build time by Next.js, so this
+      # must be a build arg, not a runtime `environment:` entry.
+      args:
+        NEXT_PUBLIC_API_URL: "http://localhost:8000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
