@@ -1,232 +1,177 @@
-# Causality on breast cancer data
-### The purpose of this project is to 
-- Perform a causal inference task using Pearl’s framework
-- Infer the causal graph from observational data and then validate the graph
-- Merge machine learning with causal inference
-on [breast cancer data](https://www.kaggle.com/uciml/breast-cancer-wisconsin-data)
- 
-# 🎗️ Breast Cancer Causal Machine Learning Analysis
+# Causality
 
-A comprehensive machine learning project that uses causal inference techniques to predict breast cancer malignancy with high accuracy and interpretability.
+**Causal machine learning for breast cancer diagnosis.** This project goes beyond "which features predict
+malignancy" and asks "which features *cause* it, under an explicit, falsifiable causal model" — implemented
+with Judea Pearl's do-calculus (via [DoWhy](https://www.pywhy.org/dowhy/)), a domain-informed causal graph,
+interpretable predictive models, and SHAP explanations, wrapped in a full-stack app (FastAPI + React) and a
+lightweight Streamlit companion demo.
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)
+![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Tests](https://img.shields.io/badge/Tests-Passing-success.svg)
-![Coverage](https://img.shields.io/badge/Coverage-95%25-brightgreen.svg)
 
-## 🌟 Features
+## Why "causal" and not just "predictive"
 
-- ✅ **Causal Feature Selection**: Statistical methods to identify truly causal features
-- ✅ **Multiple ML Models**: Comparison of 4 different algorithms
-- ✅ **SHAP Interpretability**: Understand model predictions
-- ✅ **Interactive Web App**: Streamlit-based user interface
-- ✅ **Automated Testing**: CI/CD pipeline with GitHub Actions
-- ✅ **High Accuracy**: 98%+ accuracy on test data
+Most ML feature-importance tools (ANOVA scores, mutual information, SHAP) measure **association** — rung 1
+of Pearl's [Ladder of Causation](https://en.wikipedia.org/wiki/Ladder_of_causation). They can't tell you
+whether a feature is a cause of the outcome, a symptom of a shared cause, or a proxy for something else
+entirely. This project makes that distinction explicit:
 
-## 📊 Project Structure
+1. **Statistical screening** narrows 30 raw cytology measurements to 15 candidates (association only).
+2. **A causal graph**, built from domain knowledge about tumor cytology, is handed to DoWhy, which
+   identifies a valid *backdoor adjustment set* per treatment and estimates its causal effect on diagnosis —
+   then stress-tests that estimate with refutation checks (does it survive a random common cause? does it
+   collapse under a placebo/permuted treatment?).
+3. **Predictive modeling + SHAP** trains and compares four classifiers and explains their predictions — a
+   different, complementary kind of insight from the causal estimates in step 2.
+
+See [`ml/causal_graph.py`](ml/causal_graph.py) and
+[`notebooks/02_Causal_Inference_and_Modeling.ipynb`](notebooks/02_Causal_Inference_and_Modeling.ipynb) for
+the full reasoning, or the **Methodology** page in the deployed app.
+
+## Architecture
 
 ```
-breast-cancer-causal-ml/
-├── data/                    # Dataset storage
-├── src/                     # Source code
-├── tests/                   # Unit and integration tests
-├── models/                  # Trained models
-├── outputs/                 # Analysis outputs
-├── .github/workflows/       # CI/CD configuration
-├── app.py                   # Streamlit web application
-├── requirements.txt         # Python dependencies
-└── README.md               # This file
+                     ┌─────────────────────┐
+                     │   ml/ (Python)       │
+                     │  data → features →   │
+                     │  causal_graph →      │
+                     │  modeling → interpret│
+                     └──────────┬───────────┘
+                                │ python -m ml.pipeline
+                                ▼
+                  models/ + outputs/reports/ + outputs/figures/
+                     │                              │
+     ┌───────────────┴───────────────┐              │
+     ▼                                ▼              ▼
+┌─────────────┐              ┌───────────────┐  notebooks/*.ipynb
+│ backend/     │◄────REST────┤ frontend/      │  (narrated walkthrough)
+│ FastAPI      │              │ Next.js+React  │
+│ (Render/Fly) │              │ (Vercel)       │
+└─────────────┘              └───────────────┘
+
+              ┌─────────────────────────────────┐
+              │ streamlit_app.py — Streamlit demo │  (reads models/ + outputs/ directly,
+              │ (Streamlit Community Cloud)       │   no backend needed)
+              └─────────────────────────────────┘
 ```
 
-## 🚀 Quick Start
+| Layer | Tech | Why |
+|---|---|---|
+| Causal inference | [DoWhy](https://www.pywhy.org/dowhy/), [NetworkX](https://networkx.org/) | Pearl's graphical do-calculus: identification + estimation + refutation, without a native Graphviz dependency |
+| ML / stats | scikit-learn, statsmodels, SHAP | Feature screening, modeling, interpretability |
+| API | FastAPI, Pydantic v2, Uvicorn | Typed, async, auto-documented (`/docs`) |
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Recharts | Modern React stack, deploys natively to Vercel |
+| Secondary UI | Streamlit | Zero-frontend-code demo for a data-science audience |
+| Data versioning | DVC (+ regeneration from `sklearn.datasets`) | Reproducible without requiring remote storage credentials |
+| CI/CD | GitHub Actions (backend + frontend workflows) | Pipeline + tests run on every push; Docker image build verified |
+| Containerization | Docker, docker-compose | Backend deploys anywhere containers run |
 
-### 1. Clone the Repository
+## Repository layout
+
+```
+ml/                   Reusable causal ML pipeline (the actual "engine")
+  data.py             Load/regenerate the dataset (sklearn.datasets, Kaggle-schema CSV)
+  features.py         Statistical "causal score" feature screening
+  causal_graph.py      Domain DAG + DoWhy backdoor estimation + refutation
+  modeling.py          Multi-model training/evaluation
+  interpret.py          SHAP importance
+  visuals.py             Matplotlib report figures
+  pipeline.py             Orchestrates the above, saves all artifacts
+  run_notebooks.py          Executes notebooks/*.ipynb in place (CI + local)
+notebooks/            Narrated EDA + causal-inference/modeling walkthrough
+backend/              FastAPI service serving trained artifacts to the frontend
+frontend/             Next.js + TypeScript + Tailwind app (deploy target: Vercel)
+tests/                pytest suite for ml/
+streamlit_app.py      Streamlit companion demo
+data/, models/, outputs/   Generated (gitignored) - see "Reproducing" below
+```
+
+## Reproducing the analysis
+
 ```bash
-git clone https://github.com/yourusername/breast-cancer-causal-ml.git
-cd breast-cancer-causal-ml
-```
-
-### 2. Create Virtual Environment
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-### 3. Install Dependencies
-```bash
+python -m venv venv && venv\Scripts\activate        # Windows; use `source venv/bin/activate` on macOS/Linux
 pip install -r requirements.txt
-```
 
-### 4. Add Your Data
-Place your `breast_cancer_data.csv` file in the `data/` folder.
-
-### 5. Run the Analysis
-```bash
-python src/causal_ml_analysis.py
-```
-
-### 6. Launch Web App
-```bash
-streamlit run app.py
-```
-
-Visit `http://localhost:8501` in your browser.
-
-## 🧪 Running Tests
-
-```bash
-# Run all tests
+python -m ml.pipeline          # data → causal graph → models → SHAP → models/ + outputs/
+python -m ml.run_notebooks     # (optional) re-executes notebooks/*.ipynb in place
 pytest tests/ -v
-
-# Run with coverage
-pytest --cov=src tests/
-
-# Run specific test file
-pytest tests/test_model_performance.py -v
 ```
 
-## 📦 Deployment
+`python -m ml.pipeline` is fully deterministic and self-contained: it regenerates `data/data.csv` from
+`sklearn.datasets.load_breast_cancer` (reshaped to the original Kaggle column schema) if it isn't already
+present, so nothing here depends on the DVC remote being reachable. If you do have access to the original
+`storage` DVC remote, `dvc pull` will fetch the authoritative CSV instead.
 
-### Deploy to Streamlit Cloud
-
-1. Push your code to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect your GitHub repository
-4. Select `app.py` as the main file
-5. Deploy!
-
-### Deploy to Heroku
-
-1. Create `Procfile`:
-```
-web: streamlit run app.py --server.port=$PORT
-```
-
-2. Create `runtime.txt`:
-```
-python-3.9.16
-```
-
-3. Deploy:
-```bash
-heroku create your-app-name
-git push heroku main
-```
-
-## 📈 Results
+### Results (current run)
 
 | Model | Accuracy | ROC-AUC | F1-Score |
-|-------|----------|---------|----------|
-| Logistic Regression | 96.5% | 98.7% | 96.2% |
-| Random Forest | **98.2%** | **99.4%** | **98.1%** |
-| Gradient Boosting | 97.5% | 99.0% | 97.4% |
-| SVM | 97.2% | 98.8% | 97.0% |
+|---|---|---|---|
+| SVM (calibrated) | 98.2% | 99.6% | 97.6% |
+| Logistic Regression | 97.4% | 99.7% | 96.4% |
+| Random Forest | 97.4% | 99.6% | 96.3% |
+| **Gradient Boosting** (best ROC-AUC) | 95.6% | **99.8%** | 93.7% |
 
-## 🔬 Methodology
+All five backdoor-adjusted causal-effect estimates (`outputs/reports/causal_effects.csv`) survived placebo
+refutation in the current run — see the Insights page or `causal_analysis_report.txt` for details.
 
-### Causal Feature Selection
-1. **ANOVA F-Test**: Statistical significance
-2. **Mutual Information**: Non-linear dependencies
-3. **Random Forest Importance**: Tree-based importance
-4. **Logistic Coefficients**: Linear relationships
+## Running the full stack locally
 
-### Model Interpretation
-- **SHAP Values**: Explain individual predictions
-- **Feature Importance**: Global feature rankings
-- **Causal Analysis**: Identify true causal relationships
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👤 Author
-
-**Your Name**
-- GitHub: [@Desmondonam](https://github.com/Desmondonam)
-- LinkedIn: [Desmond Onam](https://www.linkedin.com/in/desmond-onam-b64702175/)
-- Email: desmondonam@gmail.com
-
-## 🙏 Acknowledgments
-
-- Wisconsin Breast Cancer Dataset
-- Scikit-learn community
-- SHAP library developers
-- Streamlit team
-
-## 📞 Support
-
-For support, email desmodnonam@gmail.com or open an issue on GitHub.
-
----
-
-Made with Love for advancing medical AI
-```
-
----
-
-### 9. Procfile (for Heroku)
-```
-web: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0
-```
-
----
-
-### 10. runtime.txt (for Heroku)
-```
-python-3.9.16
-```
-
----
-
-## 🎯 Step-by-Step Deployment Guide
-
-### Step 1: Setup GitHub Repository
 ```bash
-# Initialize git
-git init
+# 1. Train and export artifacts (see above)
+python -m ml.pipeline
 
-# Add all files
-git add .
+# 2. Backend
+pip install -r backend/requirements.txt
+uvicorn app.main:app --reload --app-dir backend    # http://localhost:8000, docs at /docs
 
-# Commit
-git commit -m "Initial commit: Breast Cancer Causal ML Analysis"
+# 3. Frontend (new terminal)
+cd frontend
+npm install
+cp .env.example .env.local                         # NEXT_PUBLIC_API_URL=http://localhost:8000
+npm run dev                                         # http://localhost:3000
 
-# Create repository on GitHub, then:
-git remote add origin https://github.com/yourusername/breast-cancer-causal-ml.git
-git branch -M main
-git push -u origin main
+# 4. (optional) Streamlit companion, no backend required
+streamlit run streamlit_app.py
 ```
 
-### Step 2: Deploy to Streamlit Cloud
-1. Visit [share.streamlit.io](https://share.streamlit.io)
-2. Click "New app"
-3. Select your GitHub repository
-4. Choose `main` branch
-5. Set main file path: `app.py`
-6. Click "Deploy"!
+Or with Docker Compose (backend + frontend, after step 1):
 
-### Step 3: GitHub Actions will automatically:
-- Run tests on every push
-- Validate data loading
-- Check model performance
-- Generate coverage reports
+```bash
+docker compose up --build
+```
 
----
+## Deployment
 
-## 📝 Next Steps
+| Component | Target | Notes |
+|---|---|---|
+| Frontend | **Vercel** | Root directory = `frontend`; set `NEXT_PUBLIC_API_URL` to the deployed backend URL. See [`frontend/README.md`](frontend/README.md). |
+| Backend | Any container host (Render, Fly.io, Railway, ...) | Build `backend/Dockerfile` from the repo root (it needs `ml/`, `models/`, `outputs/reports/`). See [`backend/README.md`](backend/README.md). |
+| Streamlit demo | Streamlit Community Cloud | Point at `streamlit_app.py`; run `python -m ml.pipeline` in a pre-deploy step or commit the artifacts if your host doesn't support one. |
 
-1. **Replace mock data** in `app.py` with actual model results
-2. **Train your models** using the causal ML analysis script
-3. **Save trained models** to the `models/` folder
-4. **Test locally** before pushing to GitHub
-5. **Deploy** and share your project!
+CI (`.github/workflows/backend-ci.yml`, `frontend-ci.yml`) runs the pipeline, the full test suite, and a
+Docker build on every push, so a red build means the deployable artifact is actually broken.
+
+## Notebooks
+
+- [`notebooks/01_EDA.ipynb`](notebooks/01_EDA.ipynb) — class balance, summary statistics, correlation
+  structure, effect sizes.
+- [`notebooks/02_Causal_Inference_and_Modeling.ipynb`](notebooks/02_Causal_Inference_and_Modeling.ipynb) —
+  statistical screening, the causal graph, DoWhy identification/estimation/refutation, model training, SHAP.
+
+Both import from `ml/` rather than duplicating logic, and are re-executed by `python -m ml.run_notebooks`
+(and in CI) so they never drift from the code.
+
+## License
+
+[MIT](LICENSE)
+
+## Disclaimer
+
+This project is for education and research into causal machine learning methodology. It is not a validated
+medical device and must not be used for real diagnostic decisions.
+
+## Author
+
+**Desmond Onam** — [@Desmondonam](https://github.com/Desmondonam) ·
+[LinkedIn](https://www.linkedin.com/in/desmond-onam-b64702175/)
