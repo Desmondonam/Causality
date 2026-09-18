@@ -1,3 +1,4 @@
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
@@ -21,34 +22,44 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Data files
+# --- Data (DVC-tracked; regenerate with `python -m ml.data`) ---
 *.csv
 !data/.gitkeep
 
-# Models
-models/*.pkl
-!models/.gitkeep
+# --- Generated pipeline artifacts (regenerate with `python -m ml.pipeline`) ---
+models/
+outputs/
 
-# Outputs
-outputs/figures/*.png
-outputs/reports/*.txt
-!outputs/.gitkeep
+# --- Node / Next.js (frontend/) ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
 
-# IDE
+# --- IDE ---
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# --- OS ---
 .DS_Store
 Thumbs.db
 
-# Environment
+# --- Environment ---
 .env
 .env.local
+.env.*.local
+backend/.env
+frontend/.env.local

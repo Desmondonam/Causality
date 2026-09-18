@@ -1,0 +1,59 @@
+[project]
+name = "causality"
+version = "2.0.0"
+description = "Causal machine learning for breast cancer diagnosis: Pearl's causal graph framework (via DoWhy) combined with interpretable predictive modeling (SHAP)."
+authors = [{ name = "Desmond Onam", email = "desmond.onam@havartechs.com" }]
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=2.1,<3",
+    "pandas>=2.2,<4",
+    "scipy>=1.13,<2",
+    "statsmodels>=0.14,<1",
+    "scikit-learn>=1.5,<2",
+    "dowhy>=0.11,<1",
+    "networkx>=3.3,<4",
+    "shap>=0.45,<1",
+    "matplotlib>=3.9,<4",
+    "seaborn>=0.13,<1",
+    "plotly>=5.22,<8",
+    "streamlit>=1.38,<2",
+    "joblib>=1.4,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<10",
+    "pytest-cov>=5.0,<8",
+    "nbformat>=5.10,<6",
+    "nbclient>=0.10,<1",
+    "ipykernel>=6.29,<7",
+    "ruff>=0.6",
+]
+backend = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+    "pydantic-settings>=2.4,<3",
+]
+
+[project.scripts]
+causality-generate-data = "ml.data:save_dataset"
+causality-train = "ml.pipeline:run"
+
+[tool.setuptools.packages.find]
+include = ["ml*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "backend/tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
